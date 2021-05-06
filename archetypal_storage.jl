@@ -1,3 +1,4 @@
+
 struct EntityLocation
     archetype::Int
     index::Int
@@ -10,14 +11,27 @@ mutable struct ArchetypalStorage
 
     archetype_table::Vector{Type}
     archetype_map::Dict{Type,Int}
+    component_table::Dict{Symbol,HiBitSet{3,64}}
 end
-ArchetypalStorage() = ArchetypalStorage(0,EntityLocation[],Vector[],Type[],Dict{Type,Int}())
+ArchetypalStorage() = ArchetypalStorage(0,EntityLocation[],Vector[],Type[],Dict{Type,Int}(),Dict{Symbol,HiBitSet{3,64}}())
+
+componentnames(x) = fieldnames(x)
 
 function get_archetype(s::ArchetypalStorage,t::Type{T}) where {T}
     get!(s.archetype_map,t) do 
         push!(s.archetype_table,t)
         push!(s.archetypal_storage,T[])
-        length(s.archetype_table)
+        n = length(s.archetype_table)
+        for (fname,c) in s.component_table
+            push!(c,false)
+        end
+        for fname in fieldnames(t)
+            c = get!(s.component_table,fname) do 
+                HiBitSet{3,64}(falses(n))
+            end
+            c[n] = true
+        end
+        n
     end
 end
 
@@ -47,6 +61,3 @@ Base.getindex(storage::ArchetypalStorage,uid::Int) = get_entity(storage,uid)
 Base.setindex!(storage::ArchetypalStorage,value,uid::Int) = set_entity!(storage,uid,value)
 Base.push!(storage::ArchetypalStorage,entity) = insert_entity!(storage,entity)
 
-
-a = ArchetypalStorage()
-push!(a,10)

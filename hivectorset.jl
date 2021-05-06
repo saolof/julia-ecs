@@ -36,11 +36,15 @@ struct HiVecSet{N,F,T,V<:AbstractVector{T}}
     bloomtables::NTuple{N,Vector{MaxMinBloomFilter{T}}}
 end
 
+const HiBitSet{N,F} = HiVecSet{N,F,Bool,BitVector}
+
 function HiVecSet{N,F}(v::V) where {N,F,T,V<:AbstractVector{T}} 
     mxn = v
     bloom_table_iter = ((mxn = make_bloom_table(mxn,F);mxn) for i in 1:N)
     HiVecSet{N,F,T,V}(v, Tuple(bloom_table_iter))
 end
+
+HiVecSet{N,F,T,V}(v::V) where {N,F,T,V<:AbstractVector{T}} = HiVecSet{N,F}(v)
 
 Base.getindex(bv::HiVecSet,i) = bv.table[i]
 hbs_layer(l, hbs::HiVecSet) = hbs.bloomtables[l]
@@ -70,19 +74,24 @@ function Base.setindex!(v::HiVecSet,value,i)
     repair_invariant(v,i)
 end
 
+function Base.push!(v::HiVecSet,value)
+    push!(v.table,value)
+    repair_invariant(v,length(v.table))
+end
+
 function Base.show(io::IO,v::HiVecSet{N,F,T}) where {N,F,T}
     println("HiVecSet{$N,$F,$T} with $(length(v)) elements:")
     for i in 1:length(v)
-        print(io,"$(v[i]) | ")
+        print(io,"$(v[i]) \t | ")
         j = i - 1
         for l in 1:N
             print(io,"\t")
             if j % F^l == 0
                 print(io,hbs_layer(l,v)[begin + div(j,F^l)])
             elseif (j+1) % F^l != 0 
-                i == length(v) ? print(io,"[ ↓↓ ]") : print(io,"[ || ]")
+                i == length(v) ? print(io,"[ ↓↓ ]\t") : print(io,"[ || ]\t")
             else
-                print(io,"[<++ ]")
+                print(io,"[<++ ]\t")
             end
         end
         println(io,";")
