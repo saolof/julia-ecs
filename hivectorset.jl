@@ -3,12 +3,6 @@ struct MaxMinBloomFilter{T}
     max::T
 end
 
-struct HiVecSet{N,F,T}
-    table::Vector{T}
-    bloomtables::NTuple{N,Vector{MaxMinBloomFilter{T}}}
-end
-
-
 MaxMinBloomFilter(x::MaxMinBloomFilter) = x
 MaxMinBloomFilter(x::T) where {T} = MaxMinBloomFilter{T}(x,x)
 function Base.in(item::T,mmbf::MaxMinBloomFilter{T}) where {T}
@@ -24,9 +18,9 @@ end
 
 Base.show(io::IO, bf::MaxMinBloomFilter) = print("[$(bf.min)..$(bf.max)]")
 
-bloom_table_type(t::Type{Vector{T}}) where {T} = Vector{MaxMinBloomFilter{T}}
+bloom_table_type(t::Type{<:AbstractVector{T}}) where {T} = Vector{MaxMinBloomFilter{T}}
 bloom_table_type(t::Type{Vector{MaxMinBloomFilter{T}}}) where {T} = Vector{MaxMinBloomFilter{T}}
-function make_bloom_table(v::Vector{T},fanout) where {T}
+function make_bloom_table(v::AbstractVector{T},fanout) where {T}
     bv = bloom_table_type(Vector{T})(undef,cld(length(v),fanout))
     for (i,b) in enumerate(v)
         if isone(i % fanout)
@@ -37,10 +31,15 @@ function make_bloom_table(v::Vector{T},fanout) where {T}
     bv
 end
 
-function HiVecSet{N,F}(v::Vector{T}) where {N,F,T} 
+struct HiVecSet{N,F,T,V<:AbstractVector{T}}
+    table::V
+    bloomtables::NTuple{N,Vector{MaxMinBloomFilter{T}}}
+end
+
+function HiVecSet{N,F}(v::V) where {N,F,T,V<:AbstractVector{T}} 
     mxn = v
     bloom_table_iter = ((mxn = make_bloom_table(mxn,F);mxn) for i in 1:N)
-    HiVecSet{N,F,T}(v, Tuple(bloom_table_iter))
+    HiVecSet{N,F,T,V}(v, Tuple(bloom_table_iter))
 end
 
 Base.getindex(bv::HiVecSet,i) = bv.table[i]
@@ -151,14 +150,27 @@ end
 
 
 
-a = HiVecSet{4,4}([5 for i in 1:255]);
-a[20] = 3;
-a[21] = 3;
-a[25] = 3;
-a[27] = 3;
-a[180] = 3;
-a[190] = 3;
+# a = HiVecSet{4,4}([5 for i in 1:255]);
+# a[20] = 3;
+# a[21] = 3;
+# a[25] = 3;
+# a[27] = 3;
+# a[180] = 3;
+# a[190] = 3;
 
-collect(iterequals(3,a))
+# collect(iterequals(3,a))
+
+
+
+# b = HiVecSet{4,4}(falses(255));
+# b[20] = true;
+# b[21] = true;
+# b[25] = true;
+# b[27] = true;
+# b[180] = true;
+# b[190] = true;
+
+# collect(iterequals(true,b))
+
 
 
