@@ -2,6 +2,7 @@ using MacroTools
 
 include("hivectorset.jl")
 include("archetypal_storage.jl")
+include("world.jl")
 
 
 a = ArchetypalStorage()

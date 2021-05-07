@@ -79,8 +79,16 @@ function Base.setindex!(v::HiVecSet,value,i)
     repair_invariant(v,i)
 end
 
-function Base.push!(v::HiVecSet,value)
+function Base.push!(v::HiVecSet{N,F},value) where {N,F}
+    layersizes = length.(v.bloomtables)
+    i = length(v.table)
+    l = 1
     push!(v.table,value)
+    while l<=N && iszero(i % F)
+        push!(hbs_layer(l,v),MaxMinBloomFilter(value))
+        l += 1
+        i = div(i,F)     
+    end
     repair_invariant(v,length(v.table))
 end
 
