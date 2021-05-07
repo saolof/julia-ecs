@@ -1,4 +1,3 @@
-
 struct EntityLocation
     archetype::Int
     index::Int

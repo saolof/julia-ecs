@@ -48,7 +48,12 @@ HiVecSet{N,F,T,V}(v::V) where {N,F,T,V<:AbstractVector{T}} = HiVecSet{N,F}(v)
 
 Base.getindex(bv::HiVecSet,i) = bv.table[i]
 hbs_layer(l, hbs::HiVecSet) = hbs.bloomtables[l]
+Base.firstindex(hbs::HiVecSet) = firstindex(hbs.table)
+Base.lastindex(hbs::HiVecSet) = lastindex(hbs.table)
 Base.length(hbs::HiVecSet) = length(hbs.table)
+
+layerget(l,hbs::HiVecSet,i) = hbs_layer(l,hbs)[i]
+layerget_zero(l,hbs::HiVecSet,i) = hbs_layer(l,hbs)[begin + i]
 
 function repair_invariant(v::HiVecSet{N,F,T},n) where {N,F,T}
     n -= 1
@@ -87,7 +92,7 @@ function Base.show(io::IO,v::HiVecSet{N,F,T}) where {N,F,T}
         for l in 1:N
             print(io,"\t")
             if j % F^l == 0
-                print(io,hbs_layer(l,v)[begin + div(j,F^l)])
+                print(io, layerget_zero(l,v,div(j,F^l)))
             elseif (j+1) % F^l != 0 
                 i == length(v) ? print(io,"[ ↓↓ ]\t") : print(io,"[ || ]\t")
             else
@@ -99,87 +104,87 @@ function Base.show(io::IO,v::HiVecSet{N,F,T}) where {N,F,T}
 end
 
 
-function findnext_equals(x::T,hbs::HiVecSet{N,F,T},n) where {N,F,T}
-    m = min(cld(n-1,F)*F,length(hbs))
-    r = findnext(bf -> in(x,bf),view(hbs.table,n:m),1)
-    if !isnothing(r) || m==length(hbs)
-        return n + r - 1
-    end
-    n = m  # n is zero indexed here.
-    l = 1
-    i = div(n,F)
-    while l <= N && !in(x,hbs_layer(l,hbs)[begin + i])
-        layer = hbs_layer(l,hbs)
-        m = min(cld(i,F)*F,length(layer))
-        r = findnext(bf -> in(x,bf),view(layer,(i+1):m),1)
-        if isnothing(r)
-            if m == length(layer)
-                return
-            end
-            println("Rose to layer $l , n set to $(m+1), was $(n+1)")        
-            l+= 1
-            n = m
-            i = div(n,F)
-        else
-            print("Rose to layer $l , n was $(n+1), ")
-            n = i + r - 1
-            println("set to $(n+1)")
-            l+=1
-            break
+
+# Interface: getindex returns booleans, 
+# layerget gets the Or of all booleans returned, much like for hibitset.
+abstract type HBSQuery{N,F} end
+
+function Base.findnext(q::HBSQuery{N,F},i::Integer) where {N,F}
+    i -= firstindex(q) # This algorithm uses zero-indexing for modular arithmetic.
+    lastind = lastindex(q) - firstindex(q)
+    while i <= lastind
+        if q[begin+i] 
+            return firstindex(q) + i 
         end
-    end
-    l -=1
-    n += 1 # Back to 1-indexing.
-    while l >= 1
-        n = findnext(bf -> in(x,bf),hbs_layer(l,hbs),n)
-        if isnothing(n) return end
-        n = (n-1)*F + 1 
-        l -= 1
-        println("fell to layer $l, n set to $n)")
-    end
-    findnext(y->x==y,hbs.table,n)
-end
-
-struct IterEquals{N,F,T}
-    x::T
-    hbs::HiVecSet{N,F,T}
-end
-eltype(::Type{IterEquals{N,F,T}}) where {N,F,T} = Int
-Base.IteratorSize(::Type{<:IterEquals}) = Base.SizeUnknown() 
-iterequals(x::T,hbs::HiVecSet{N,F,T}) where {N,F,T} = IterEquals{N,F,T}(x,hbs)
-
-function Base.iterate(ie::IterEquals{N,F,T},state=1) where {N,F,T} 
-    index = findnext_equals(ie.x,ie.hbs,state)
-    if isnothing(index)
-        return
-    else
-        return (index,index+1)
+        step = 1
+        l = 1
+        j = i
+        while l<=N && iszero(j % F) && !layerget_zero(l,q,div(j,F))
+            l+=1
+            j = div(j,F)
+            step *= F
+        end
+        i += step
     end
 end
 
+function Base.iterate(q::HBSQuery,state=firstindex(q))
+    n = findnext(q,state)
+    isnothing(n) ? nothing : (n,n+1)
+end
+Base.eltype(::Type{<:HBSQuery}) = Int
+Base.IteratorSize(::Type{<:HBSQuery}) = Base.SizeUnknown()
 
 
-# a = HiVecSet{4,4}([5 for i in 1:255]);
-# a[20] = 3;
-# a[21] = 3;
-# a[25] = 3;
-# a[27] = 3;
-# a[180] = 3;
-# a[190] = 3;
+import Base.(!)
 
-# collect(iterequals(3,a))
+struct EqualsQuery{N,F,T,V} <: HBSQuery{N,F}
+    element::T
+    hvs::V
+end
+equalsquery(hvs::HiVecSet{N,F,T,V},value::T) where {N,F,T,V} = EqualsQuery{N,F,T,HiVecSet{N,F,T,V}}(value,hvs)
+
+Base.firstindex(q::EqualsQuery) = firstindex(q.hvs)
+Base.lastindex(q::EqualsQuery) = lastindex(q.hvs)
+Base.getindex(q::EqualsQuery,i) = q.hvs[i] == q.element
+layerget(l,q::EqualsQuery,i) = iszero(l) ? q[i] : q.element ∈ layerget(l,q.hvs,i)
+layerget_zero(l,q::EqualsQuery,i) = iszero(l) ? q[begin+i] : q.element ∈ layerget_zero(l,q.hvs,i)
+
+!(q::EqualsQuery{N,F,Bool,V}) where {N,F,V} = EqualsQuery{N,F,Bool,V}(!q.element,q.hvs)
 
 
+import Base.(&)
 
-# b = HiVecSet{4,4}(falses(255));
-# b[20] = true;
-# b[21] = true;
-# b[25] = true;
-# b[27] = true;
-# b[180] = true;
-# b[190] = true;
+struct AndQuery{N,F,A<:HBSQuery{N,F},B<:HBSQuery{N,F}} <: HBSQuery{N,F}
+    a::A
+    b::B
+end
 
-# collect(iterequals(true,b))
+(a::A & b::B) where {N,F,A<:HBSQuery{N,F},B<:HBSQuery{N,F}} = AndQuery(a,b)
 
+Base.firstindex(q::AndQuery) = firstindex(q.a)
+Base.lastindex(q::AndQuery) = lastindex(q.a)
+Base.getindex(q::AndQuery,i) = q.a[i] & q.b[i]
+layerget(l,q::AndQuery,i) = layerget(l,q.a,i) & layerget(l,q.a,i)
+layerget_zero(l,q::AndQuery,i) = layerget_zero(l,q.a,i) & layerget_zero(l,q.a,i)
+
+!(q::AndQuery) = !q.a | !q.b
+
+import Base.(|)
+
+struct OrQuery{N,F,A<:HBSQuery{N,F},B<:HBSQuery{N,F}} <: HBSQuery{N,F}
+    a::A
+    b::B
+end
+
+(a::A | b::B) where {N,F,A<:HBSQuery{N,F},B<:HBSQuery{N,F}} = OrQuery(a,b)
+
+Base.firstindex(q::OrQuery) = firstindex(q.a)
+Base.lastindex(q::OrQuery) = lastindex(q.a)
+Base.getindex(q::OrQuery,i) = q.a[i] | q.b[i]
+layerget(l,q::OrQuery,i) = layerget(l,q.a,i) | layerget(l,q.a,i)
+layerget_zero(l,q::OrQuery,i) = layerget_zero(l,q.a,i) | layerget_zero(l,q.a,i)
+
+!(q::OrQuery) = !q.a & !q.b
 
 
