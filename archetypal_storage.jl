@@ -60,3 +60,20 @@ Base.getindex(storage::ArchetypalStorage,uid::Int) = get_entity(storage,uid)
 Base.setindex!(storage::ArchetypalStorage,value,uid::Int) = set_entity!(storage,uid,value)
 Base.push!(storage::ArchetypalStorage,entity) = insert_entity!(storage,entity)
 
+macro CQuery(ex)
+    var = gensym(:ctable)
+    body = MacroTools.postwalk(ex) do x
+        if x isa Symbol && !(x==:! || x==:& || x==:|)
+            qn = QuoteNode(x)
+            :(equalsquery($var[$qn],true))
+        else
+            x
+        end
+    end
+    :(($var) -> $body)
+end
+## Call this like this: componentquery_archetypes(@CQuery(x & y & !z | x), storage) will
+## return an iterator over all archetypes with component x, or with component x,y but no component z. 
+function cquery_archs(query::Function,storage::ArchetypalStorage) 
+    query(storage.component_table)
+end

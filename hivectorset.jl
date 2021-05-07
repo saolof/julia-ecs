@@ -135,7 +135,6 @@ end
 Base.eltype(::Type{<:HBSQuery}) = Int
 Base.IteratorSize(::Type{<:HBSQuery}) = Base.SizeUnknown()
 
-
 import Base.(!)
 
 struct EqualsQuery{N,F,T,V} <: HBSQuery{N,F}
