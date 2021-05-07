@@ -112,7 +112,6 @@ function Base.show(io::IO,v::HiVecSet{N,F,T}) where {N,F,T}
 end
 
 
-
 # Interface: getindex returns booleans, 
 # layerget gets the Or of all booleans returned, much like for hibitset.
 abstract type HBSQuery{N,F} end

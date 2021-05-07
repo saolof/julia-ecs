@@ -11,24 +11,22 @@ event_trigger(::Type{<:SystemSuperType}) = :loop
 
 struct World
     system_event_table::Dict{Event,Vector{Vector{SystemSuperType}}}
-    scheduler_table::Dict{Event,Set{ResourceTag}}
+    scheduler_table::Dict{Event,Dict{ResourceTag,Int}}
     resources::Dict{ResourceTag,Any}
 end
 
-# Systems that use disjoint resources may be scheduled to run in parallel.
+# Systems that use disjoint resources may be scheduled to run in parallel. Scheduler is greedy with an equal-depth model.
 function schedule_system(world::World,system::SystemSuperType,event=event_trigger(system))
-    schedulerset = get!(world.scheduler_table,event) do Set{ResourceTag}() end
+    schedulerdict = get!(world.scheduler_table,event) do Set{ResourceTag}() end
+    index = 1 + foldl(max,(get!(schedulerdict,r,1) for r in resources_used(system));init=1)
     for r in resources_used(system)
-        if r ∈ schedulerset
-            empty!(schedulerset)
-            push!(world.system_event_table[event],Vector{SystemSuperType}())
-            break
-        end
+        schedulerdict[r] = index
     end
-    for r in resources_used
-        push!(schedulerset,r)
+    if index <= length(world.system_event_table[event])
+        push!(world.system_event_table[event][index],system)
+    else
+        push!(world.system_event_table[event],Vector{SystemSuperType}(system))
     end
-    push!(last(world.system_event_table[event]),system)
 end
 
 function process_event_seq(world::World,event::Event)
