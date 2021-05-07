@@ -1,14 +1,5 @@
 const Event = Symbol
 const ResourceTag = Symbol
-const SystemSuperType = Function
-
-# Each different kind of system should have a unique type.
-# You may implement those functions on each system to configure it.
-resources_used(system::SystemSuperType) = resources_used(typeof(system))
-resources_used(::Type{<:SystemSuperType}) = (:entities,)
-
-event_trigger(system::SystemSuperType) = event_trigger(typeof(system))
-event_trigger(::Type{<:SystemSuperType}) = :loop
 
 struct World
     system_event_table::Dict{Event,Vector{Vector{SystemSuperType}}}
@@ -18,8 +9,14 @@ end
 
 World() = World(Dict{Event,Vector{Vector{SystemSuperType}}}(),Dict{Event,Dict{ResourceTag,Int}}(),Dict{ResourceTag,Any}(:entities=>ArchetypalStorage()))
 
+function schedule_system(world::World,system::SystemSuperType)
+    for event in event_trigger(system)
+        _schedule_system(world,system,event)
+    end
+end
+
 # Systems that use disjoint resources may be scheduled to run in parallel. Scheduler is greedy with an equal-depth model.
-function schedule_system(world::World,system::SystemSuperType,event=event_trigger(system))
+function _schedule_system(world::World,system::SystemSuperType,event::Event)
     schedulerdict = get!(world.scheduler_table,event) do 
         Dict{ResourceTag,Int}() 
     end

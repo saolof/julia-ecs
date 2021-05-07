@@ -2,9 +2,10 @@ using MacroTools
 
 include("hivectorset.jl")
 include("archetypal_storage.jl")
+include("system.jl")
 include("world.jl")
 
-w = World()
+w = World();
 
 function startup_system(entities)
     push!(entities,(x=1,y=1))
@@ -13,7 +14,10 @@ function startup_system(entities)
     push!(entities,(x=4,))
     push!(entities,(y=1,))
 end
-event_trigger(::Type{typeof(startup_system)}) = :startup
+
+#expands to event_trigger(::Type{typeof(startup_system)}) = (:startup,)
+@set_event_trigger startup_system := (:startup,)
+
 schedule_system(w,startup_system)
 
 function print_exes(entities)
