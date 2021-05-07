@@ -74,6 +74,14 @@ macro CQuery(ex)
 end
 ## Call this like this: componentquery_archetypes(@CQuery(x & y & !z | x), storage) will
 ## return an iterator over all archetypes with component x, or with component x,y but no component z. 
-function cquery_archs(query::Function,storage::ArchetypalStorage) 
+function cquery_arch_ids(query::Function,storage::ArchetypalStorage) 
     query(storage.component_table)
 end
+
+function cquery_foreach(f,query::Function,storage::ArchetypalStorage)
+    for archid in cquery_arch_ids(query,storage)
+        arch = storage.archetypal_storage[archid]
+        foreach(f,arch)
+    end
+end
+
