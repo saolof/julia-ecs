@@ -81,7 +81,7 @@ end
 function cquery_foreach(f,query::Function,storage::ArchetypalStorage)
     for archid in cquery_arch_ids(query,storage)
         arch = storage.archetypal_storage[archid]
-        foreach(f,arch)
+        f.(arch)
     end
 end
 
