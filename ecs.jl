@@ -1,4 +1,5 @@
 using MacroTools
+using StructArrays
 
 include("hivectorset.jl")
 include("archetypal_storage.jl")
@@ -22,19 +23,29 @@ schedule_system(w,startup_system)
 
 function print_exes(entities)
     cquery_foreach(@CQuery(x & y),entities) do ent
-        println("x is $(ent.x), y is $(ent.y)")        
+        println("x is $(ent.x), y is $(ent.y)")   
+        println(ent)     
     end
     cquery_foreach(@CQuery(x & !y),entities) do ent
-        println("x is $(ent.x)")        
+        println("x is $(ent.x)")
+        println(ent)             
     end
     cquery_foreach(@CQuery(y & !x),entities) do ent
-        println("y is $(ent.y)")        
+        println("y is $(ent.y)") 
+        println(ent)     
     end
 end
 schedule_system(w,print_exes)
 
 process_event_seq(w,:startup)
 process_event_seq(w,:loop)
+
+# output:
+# x is 1, y is 1
+# x is 2, y is -1
+# x is 3
+# x is 4
+# y is 1
 
 # a = ArchetypalStorage()
 # push!(a,10)

@@ -6,7 +6,7 @@ end
 mutable struct ArchetypalStorage
     entity_counter::Int
     entity_table::Vector{EntityLocation}
-    archetypal_storage::Vector{Vector}
+    archetypal_storage::Vector{StructVector}
 
     archetype_table::Vector{Type}
     archetype_map::Dict{Type,Int}
@@ -19,12 +19,12 @@ componentnames(x) = fieldnames(x)
 function get_archetype(s::ArchetypalStorage,t::Type{T}) where {T}
     get!(s.archetype_map,t) do 
         push!(s.archetype_table,t)
-        push!(s.archetypal_storage,T[])
+        push!(s.archetypal_storage,StructVector{t}(undef, 0))
         n = length(s.archetype_table)
-        for (fname,c) in s.component_table
+        for (_,c) in s.component_table
             push!(c,false)
         end
-        for fname in fieldnames(t)
+        for fname in componentnames(t)
             c = get!(s.component_table,fname) do 
                 HiBitSet{3,64}(falses(n))
             end
@@ -34,8 +34,10 @@ function get_archetype(s::ArchetypalStorage,t::Type{T}) where {T}
     end
 end
 
-# (Need to determine whether entities should store their identity).
+# If entity does not have a uid field, 
+# then this should convert the type to one that has one.
 register_uid(entity,uid::Int) = entity
+register_uid(entity::NamedTuple,uid::Int) = merge((uid=uid,),entity)
 
 function insert_entity!(storage::ArchetypalStorage,entity::T) where {T}
     storage.entity_counter += 1
@@ -45,6 +47,20 @@ function insert_entity!(storage::ArchetypalStorage,entity::T) where {T}
     location = EntityLocation(a,length(storage.archetypal_storage[a]))
     push!(storage.entity_table, location)
 end
+
+function remove_entity!(storage::ArchetypalStorage,uid::Int)
+    location = storage.entity_table[uid]
+    storage.entity_table[uid] = EntityLocation(0,0) ## TODO: consider free list to avoid leaking uids.
+    archetype = storage.archetypal_storage[location.archetype]
+    temp = pop!(archetype)
+    if location.index > length(archetype) 
+        return
+    end
+    new_uid = temp.uid
+    archetype[location.index] = temp
+    storage.entity_table[new_uid] = location
+end
+
 
 function get_entity(storage::ArchetypalStorage,uid::Int) 
     location = storage.entity_table[uid]
@@ -81,7 +97,7 @@ end
 function cquery_foreach(f,query::Function,storage::ArchetypalStorage)
     for archid in cquery_arch_ids(query,storage)
         arch = storage.archetypal_storage[archid]
-        f.(arch)
+        foreach(f,arch)
     end
 end
 
