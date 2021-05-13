@@ -36,7 +36,7 @@ end
 
 # If entity does not have a uid field, 
 # then this should convert the type to one that has one.
-register_uid(entity,uid::Int) = entity
+register_uid(entity,uid::Int) = (entity.uid = uid; entity)
 register_uid(entity::NamedTuple,uid::Int) = merge((uid=uid,),entity)
 
 function insert_entity!(storage::ArchetypalStorage,entity::T) where {T}
@@ -52,7 +52,8 @@ function remove_entity!(storage::ArchetypalStorage,uid::Int)
     location = storage.entity_table[uid]
     storage.entity_table[uid] = EntityLocation(0,0) ## TODO: consider free list to avoid leaking uids.
     archetype = storage.archetypal_storage[location.archetype]
-    temp = pop!(archetype)
+    temp = archetype[end] # TODO: contribute a pop! method to the StructArrays repository.
+    StructArrays.foreachfield(pop!,archetype)
     if location.index > length(archetype) 
         return
     end
