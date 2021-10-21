@@ -95,6 +95,6 @@ Base.haskey(rec::Record, key::Union{Integer, Symbol}) = haskey(tuple_field(rec),
 Base.get(rec::Record, key::Union{Integer, Symbol}, default) = get(tuple_field(rec),key,default)
 Base.get(f, rec::Record, key::Union{Integer, Symbol}) = haskey(rec, key) ? getfield(rec, key) : f()
 
-t = (b=1,a=2.0)
-rec = Record(t)
+# t = (b=1,a=2.0)
+# rec = Record(t)
 
